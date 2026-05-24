@@ -1,0 +1,200 @@
+# =============================================================================
+# 06-prometheus.yaml
+# Prometheus scrapes /metrics from all four services in nano-service.
+# Uses kubernetes pod SD to discover pods by label.
+# Includes alert rules for:
+#   - checkout error rate > 10% for 5 min
+#   - dependency p95 latency > 4s
+#   - pod restart loop
+#
+# Apply: kubectl apply -f 06-prometheus.yaml -n observability
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: observability
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      - /etc/prometheus/rules.yml
+
+    scrape_configs:
+      # Scrape all pods in nano-service that expose a 'metrics' port
+      - job_name: 'checkout-services'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [nano-service]
+        relabel_configs:
+          # Only scrape pods that have the app label we care about
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: (api-gateway|checkout-service|pricing-service|inventory-service)
+          # Use pod IP + port from the pod spec
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ':'
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: service
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+        metrics_path: /metrics
+
+      # Scrape prometheus itself
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+  rules.yml: |
+    groups:
+      - name: checkout-alerts
+        rules:
+
+          # Fires if checkout 5xx error rate exceeds 10% over 5 minutes
+          - alert: CheckoutErrorRateHigh
+            expr: |
+              (
+                sum(rate(http_requests_total{service="checkout-service", status_code=~"5.."}[5m]))
+                /
+                sum(rate(http_requests_total{service="checkout-service"}[5m]))
+              ) > 0.10
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Checkout error rate above 10%"
+              description: "{{ $value | humanizePercentage }} of checkout requests are failing."
+
+          # Fires if 95th-percentile dependency call latency approaches the 5s timeout
+          - alert: DependencyLatencyHigh
+            expr: |
+              histogram_quantile(0.95,
+                sum(rate(http_request_duration_seconds_bucket{service=~"pricing-service|inventory-service"}[5m]))
+                by (le, service)
+              ) > 4
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Dependency p95 latency above 4s"
+              description: "Service {{ $labels.service }} p95 latency is {{ $value }}s (threshold: 4s)."
+
+          # Fires if any pod restarts more than 3 times in 15 minutes
+          - alert: PodRestartLoop
+            expr: |
+              increase(kube_pod_container_status_restarts_total{namespace="nano-service"}[15m]) > 3
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod restart loop detected"
+              description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in 15 minutes."
+
+---
+# RBAC: allow Prometheus to read pod/service info for SD
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: observability
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/proxy, services, endpoints, pods]
+    verbs: [get, list, watch]
+  - apiGroups: [extensions, networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  - nonResourceURLs: [/metrics]
+    verbs: [get]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: observability
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.51.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=7d"
+          ports:
+            - containerPort: 9090
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: storage
+              mountPath: /prometheus
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: storage
+          emptyDir: {}   # ephemeral for lab; use PVC in production
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: observability
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+  type: ClusterIP

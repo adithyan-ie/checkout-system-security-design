@@ -1,0 +1,163 @@
+# =============================================================================
+# 02-network-policies.yaml
+# Default-deny-all ingress + explicit allow rules per legitimate path.
+# Topology (from your repo):
+#   traefik → api-gateway:80
+#   api-gateway → checkout-service:3001
+#   checkout-service → pricing-service:3003
+#   checkout-service → inventory-service:3002
+#   checkout-service → postgres:5432
+#   prometheus (observability ns) → all services :metrics port
+#
+# Apply: kubectl apply -f 02-network-policies.yaml -n nano-service
+# =============================================================================
+
+---
+# 1. Default deny ALL ingress in nano-service namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all-ingress
+  namespace: nano-service
+spec:
+  podSelector: {}        # applies to every pod in the namespace
+  policyTypes:
+    - Ingress
+
+---
+# 2. Allow Traefik Ingress controller to reach api-gateway on port 80
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-gateway
+  namespace: nano-service
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system   # Traefik runs here on K3s
+      ports:
+        - protocol: TCP
+          port: 80
+
+---
+# 3. Allow api-gateway to reach checkout-service on port 3001
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-checkout
+  namespace: nano-service
+spec:
+  podSelector:
+    matchLabels:
+      app: checkout-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - protocol: TCP
+          port: 3001
+
+---
+# 4. Allow checkout-service to reach pricing-service on port 3003
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-checkout-to-pricing
+  namespace: nano-service
+spec:
+  podSelector:
+    matchLabels:
+      app: pricing-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: checkout-service
+      ports:
+        - protocol: TCP
+          port: 3003
+
+---
+# 5. Allow checkout-service to reach inventory-service on port 3002
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-checkout-to-inventory
+  namespace: nano-service
+spec:
+  podSelector:
+    matchLabels:
+      app: inventory-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: checkout-service
+      ports:
+        - protocol: TCP
+          port: 3002
+
+---
+# 6. Allow checkout-service ONLY to reach postgres on port 5432
+#    pricing-service and inventory-service are explicitly excluded.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-checkout-to-postgres
+  namespace: nano-service
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: checkout-service
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+# 7. Allow Prometheus (observability namespace) to scrape /metrics on all services
+#    Each service exposes metrics on its main port; Prometheus uses a dedicated namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: nano-service
+spec:
+  podSelector: {}        # applies to all pods
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 3001     # checkout-service metrics
+        - protocol: TCP
+          port: 3002     # inventory-service metrics
+        - protocol: TCP
+          port: 3003     # pricing-service metrics
+        - protocol: TCP
+          port: 80       # api-gateway metrics

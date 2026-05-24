@@ -1,0 +1,14 @@
+# =============================================================================
+# 05-observability-namespace.yaml
+# Creates the observability namespace and labels it so NetworkPolicy
+# allow-prometheus-scrape (in 02-network-policies.yaml) recognises it.
+# Apply FIRST before prometheus/grafana resources.
+# Apply: kubectl apply -f 05-observability-namespace.yaml
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    kubernetes.io/metadata.name: observability

@@ -1,0 +1,105 @@
+# =============================================================================
+# 04-postgres-security-patch.yaml
+# Hardens the existing postgres deployment from your repo:
+#   - dedicated ServiceAccount (postgres-sa)
+#   - liveness probe using pg_isready
+#   - resource limits
+#   - allowPrivilegeEscalation: false
+# NOTE: postgres:15 already runs as user 999 (postgres) by default.
+#       readOnlyRootFilesystem cannot be set on postgres (it writes to /var/run/postgresql)
+#       — this is the documented exception.
+#
+# Keeps your existing postgres-secret and postgres-pvc intact.
+# Apply: kubectl apply -f 04-postgres-security-patch.yaml -n nano-service
+# =============================================================================
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: nano-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      serviceAccountName: postgres-sa
+      securityContext:
+        runAsUser: 999       # postgres user in official image
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+          securityContext:
+            allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem intentionally omitted:
+            # postgres writes to /var/run/postgresql at startup.
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: postgres-pvc   # your existing PVC from postgres-pvc.yaml
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: nano-service
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  clusterIP: None    # headless — only checkout-service should connect directly
