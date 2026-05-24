@@ -5,7 +5,7 @@
 ## File Overview
 
 ```
-a2-scripts/
+a2-scripts/checkout-system-security
 ├── security/
 │   ├── 01-serviceaccounts.yaml          # Dedicated SA per service (RBAC)
 │   ├── 02-network-policies.yaml         # Default-deny + explicit allow rules
@@ -148,22 +148,6 @@ curl -s http://localhost:9090/api/v1/targets | python3 -m json.tool | grep -E "h
 # Verify Grafana dashboards loaded
 curl -s http://admin:admin@localhost:3000/api/dashboards/home | python3 -m json.tool
 ```
-
----
-
-## What Each File Covers in the Marking Scheme
-
-| File | Part | Marks |
-|------|------|-------|
-| 01-serviceaccounts.yaml | Part 1: Secure design — RBAC | 25% |
-| 02-network-policies.yaml | Part 1: Secure design — network | 25% |
-| 03-deployment-security-patch.yaml | Part 1: Container posture | 25% |
-| 04-postgres-security-patch.yaml | Part 1: Container posture | 25% |
-| 05-observability-namespace.yaml | Part 2: Observability | 25% |
-| 06-prometheus.yaml | Part 2: Monitoring + alerts | 25% |
-| 07-grafana.yaml | Part 2: Dashboards + scenario | 25% |
-| 08-security-tests.sh | Part 3: Security testing | 30% |
-| 09-diagnosis-scenario.sh | Part 2: Demonstrated scenario | 25% |
 
 ---
 
