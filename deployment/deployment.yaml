@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: pricing-service-deployment }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: pricing-service } }
+  template:
+    metadata: { labels: { app: pricing-service } }
+    spec:
+      containers:
+        - name: pricing-service-container
+          image: localhost:5000/pricing-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3003 }]
+          env:
+            - name: PORT
+              value: "3003"
+          readinessProbe:
+            httpGet: { path: /health, port: 3003 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata: { name: pricing-svc }
+spec:
+  selector: { app: pricing-service }
+  ports: [{ name: http, port: 80, targetPort: 3003 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: inventory-service-deployment }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: inventory-service } }
+  template:
+    metadata: { labels: { app: inventory-service } }
+    spec:
+      containers:
+        - name: inventory-service-container
+          image: localhost:5000/inventory-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3002 }]
+          env:
+            - name: PORT
+              value: "3002"
+          readinessProbe:
+            httpGet: { path: /health, port: 3002 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata: { name: inventory-svc }
+spec:
+  selector: { app: inventory-service }
+  ports: [{ name: http, port: 80, targetPort: 3002 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: checkout-service-deployment }
+spec:
+  selector: { matchLabels: { app: checkout-service } }
+  template:
+    metadata: { labels: { app: checkout-service } }
+    spec:
+      containers:
+        - name: checkout-service-container
+          image: localhost:5000/checkout-service:latest
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 3001 }]
+          env:
+            - name: PRICING_URL
+              value: http://pricing-svc
+            - name: INVENTORY_URL
+              value: http://inventory-svc
+            - name: TIMEOUT_MS
+              value: "1500"
+            - name: PORT
+              value: "3001"
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-creds
+                  key: password
+            - name: POSTGRES_DB
+              value: shop
+          readinessProbe:
+            httpGet: { path: /health, port: 3001 }
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata: { name: checkout-svc }
+spec:
+  selector: { app: checkout-service }
+  ports: [{ name: http, port: 80, targetPort: 3001 }]
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: gateway-deployment }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: api-gateway } }
+  template:
+    metadata: { labels: { app: api-gateway } }
+    spec:
+      containers:
+        - name: nginx-container
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          volumeMounts:
+            - { name: volume-gateway-ui, mountPath: /usr/share/nginx/html/index.html, subPath: index.html }
+            - { name: volume-nginx-config, mountPath: /etc/nginx/conf.d/default.conf, subPath: nginx.conf }
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - { name: volume-gateway-ui, configMap: { name: gateway-ui-configmap } }
+        - { name: volume-nginx-config, configMap: { name: nginx-default-config } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: gateway-svc }
+spec:
+  selector: { app: api-gateway }
+  ports: [{ port: 80, targetPort: 80 }]
+---
