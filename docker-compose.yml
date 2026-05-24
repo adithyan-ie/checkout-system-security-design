@@ -1,0 +1,54 @@
+services:
+  pricing-service:
+    build: ./pricing-service
+    environment:
+      - PORT=3003
+      - DELAY_MS=0
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+
+  inventory-service:
+    build: ./inventory-service
+    environment:
+      - PORT=3002
+      - DELAY_MS=0
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+
+  checkout-service:
+    build: ./checkout-service
+    environment:
+      - PORT=3001
+      - PRICING_URL=http://pricing-service:3003
+      - INVENTORY_URL=http://inventory-service:3002
+      - TIMEOUT_MS=1500
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [pricing-service, inventory-service]
+
+  gateway:
+    build: ./api-gateway
+    ports: ["8088:80"]
+    read_only: true
+    tmpfs: ["/var/cache/nginx", "/var/run", "/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [checkout-service]
+
+  postgres-db:
+    image: postgres:15        # use latest stable version image
+    container_name: postgres-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: shop
+    ports:
+      - "5432:5432"          # maps host port to container
+    volumes:
+      - pgdata:/var/lib/postgresql/data 
+
+volumes:
+  pgdata:

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: keda-interceptor-external-proxy
+  namespace: nano-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: keda-interceptor-external-proxy
+  namespace: nano-service
+subsets:
+  - addresses:
+      - ip: 10.43.203.47
+    ports:
+      - port: 8080

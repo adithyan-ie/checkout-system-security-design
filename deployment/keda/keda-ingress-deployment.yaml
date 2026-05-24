@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keda-http-ingress
+  namespace: nano-service
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - path: /api/ping
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-svc
+                port:
+                  number: 80
+          - path: /api/arch
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-svc
+                port:
+                  number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: keda-interceptor-external-proxy
+                port:
+                  number: 8080
+
+          - path: /
+            pathType: Prefix
+            backend:
+             service:
+               name: gateway-svc
+               port:
+                 number: 80
+

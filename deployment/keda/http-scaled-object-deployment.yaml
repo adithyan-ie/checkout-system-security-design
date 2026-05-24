@@ -1,0 +1,19 @@
+apiVersion: http.keda.sh/v1alpha1
+kind: HTTPScaledObject
+metadata:
+  name: keda-http-target-checkout-service
+  namespace: nano-service
+spec:
+  hosts:
+    - localhost
+  pathPrefixes:
+    - /checkout
+  scaleTargetRef:
+    name: checkout-service-deployment
+    service: checkout-svc
+    port: 80
+  replicas:
+    min: 0
+    max: 5
+  scaledownPeriod: 30
+  targetPendingRequests: 50
