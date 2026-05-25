@@ -21,7 +21,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-gateway
+  name: gateway-deployment
   namespace: nano-service
 spec:
   replicas: 2
@@ -39,7 +39,7 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       containers:
-        - name: api-gateway
+        - name: api-gateway-container
           image: localhost:5000/api-gateway:latest
           ports:
             - containerPort: 80
@@ -89,7 +89,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: api-gateway
+  name: gateway-svc
   namespace: nano-service
 spec:
   selector:
@@ -103,7 +103,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: checkout-service
+  name: checkout-service-deployment
   namespace: nano-service
 spec:
   replicas: 1       # KEDA will manage this — starts at 0 when idle
@@ -121,7 +121,7 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       containers:
-        - name: checkout-service
+        - name: checkout-service-container
           image: localhost:5000/checkout-service:latest
           ports:
             - containerPort: 3001
@@ -186,7 +186,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: checkout-service
+  name: checkout-svc
   namespace: nano-service
 spec:
   selector:
@@ -200,7 +200,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pricing-service
+  name: pricing-service-deployment
   namespace: nano-service
 spec:
   replicas: 1
@@ -218,7 +218,7 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       containers:
-        - name: pricing-service
+        - name: pricing-service-container
           image: localhost:5000/pricing-service:latest
           ports:
             - containerPort: 3003
@@ -260,7 +260,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: pricing-service
+  name: pricing-svc
   namespace: nano-service
 spec:
   selector:
@@ -274,7 +274,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: inventory-service
+  name: inventory-service-deployment
   namespace: nano-service
 spec:
   replicas: 1
@@ -292,7 +292,7 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       containers:
-        - name: inventory-service
+        - name: inventory-service-container
           image: localhost:5000/inventory-service:latest
           ports:
             - containerPort: 3002
@@ -334,7 +334,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: inventory-service
+  name: inventory-svc
   namespace: nano-service
 spec:
   selector:
