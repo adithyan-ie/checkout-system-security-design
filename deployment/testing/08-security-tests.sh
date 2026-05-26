@@ -15,6 +15,16 @@
 #   - All manifests from security/ and observability/ already applied
 #   - Local registry running at localhost:5000
 #
+# Folder structure expected:
+#   deployment/
+#   ├── db-postgres.yaml
+#   ├── db-pvc.yaml
+#   ├── db-secret.yaml
+#   ├── deployment.yaml
+#   ├── security/        ← hardened manifests
+#   └── testing/
+#       └── 08-security-tests.sh   ← this file
+#
 # Usage: bash 08-security-tests.sh 2>&1 | tee security-test-results.txt
 # =============================================================================
 
@@ -23,7 +33,14 @@ set -euo pipefail
 NS="nano-service"
 REGISTRY="localhost:5000"
 IMAGES=("api-gateway" "checkout-service" "pricing-service" "inventory-service")
-RESULTS_DIR="./trivy-results"
+
+# Resolve all paths relative to this script's location — works from any directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEPLOYMENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"   # one level up = deployment/
+
+MANIFEST_DIR="$DEPLOYMENT_DIR"                   # original manifests
+HARDENED_DIR="$DEPLOYMENT_DIR/security"          # hardened manifests
+RESULTS_DIR="$SCRIPT_DIR/trivy-results"
 mkdir -p "$RESULTS_DIR"
 
 PASS=0
@@ -89,13 +106,8 @@ cat "$RESULTS_DIR/postgres-scan.txt"
 log "PART 2 — Trivy Misconfiguration Scan (Kubernetes Manifests)"
 # ─────────────────────────────────────────────────────────────────────────────
 
-MANIFEST_DIR="../deployment"
-if [ ! -d "$MANIFEST_DIR" ]; then
-  MANIFEST_DIR="./deployment"
-fi
-
 echo ""
-info "Scanning manifests in $MANIFEST_DIR ..."
+info "Scanning original manifests in $MANIFEST_DIR ..."
 trivy config \
   --severity MEDIUM,HIGH,CRITICAL \
   --format table \
@@ -104,14 +116,13 @@ trivy config \
 
 cat "$RESULTS_DIR/manifest-config-scan.txt"
 
-# After applying 03-deployment-security-patch.yaml, run again against security/ dir
 echo ""
-info "Scanning hardened manifests (security/ directory)..."
+info "Scanning hardened manifests in $HARDENED_DIR ..."
 trivy config \
   --severity MEDIUM,HIGH,CRITICAL \
   --format table \
   --output "$RESULTS_DIR/manifest-hardened-scan.txt" \
-  ./security/ || true
+  "$HARDENED_DIR" || true
 
 cat "$RESULTS_DIR/manifest-hardened-scan.txt"
 
@@ -126,7 +137,6 @@ echo ""
 info "Test 3a: Unauthorized pod SHOULD NOT reach postgres (default-deny)"
 echo "  Launching toolbox pod in nano-service..."
 
-# This should TIME OUT (connection refused or timeout = deny working)
 RESULT=$(kubectl run nettest-deny \
   --image=curlimages/curl:latest \
   --restart=Never \
@@ -145,8 +155,7 @@ fi
 
 echo ""
 info "Test 3b: pricing-service SHOULD NOT reach postgres (not in allow list)"
-# Exec into pricing-service pod and try to reach postgres
-PRICING_POD=$(kubectl get pod -n "$NS" -l app=pricing-service -o jsonpath='{.items[0].metadata.name}')
+PRICING_POD=$(kubectl get pod -n "$NS" -l app=pricing-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
 
 if [ -n "$PRICING_POD" ]; then
   RESULT=$(kubectl exec -n "$NS" "$PRICING_POD" -- \
@@ -163,14 +172,14 @@ fi
 
 echo ""
 info "Test 3c: checkout-service SHOULD reach postgres (explicit allow)"
-CHECKOUT_POD=$(kubectl get pod -n "$NS" -l app=checkout-service -o jsonpath='{.items[0].metadata.name}')
+CHECKOUT_POD=$(kubectl get pod -n "$NS" -l app=checkout-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
 
 if [ -n "$CHECKOUT_POD" ]; then
   RESULT=$(kubectl exec -n "$NS" "$CHECKOUT_POD" -- \
     sh -c "curl -m 5 -s -o /dev/null -w '%{http_code}' http://postgres:5432/ 2>&1 || echo CONN_ERR" 2>&1 || echo "CONN_ERR")
 
-  # We expect "connection refused" (HTTP can't talk to postgres) NOT "timeout"
   # A refused connection means the packet reached postgres — allow rule working
+  # A timeout means NetworkPolicy is blocking — allow rule not working
   if echo "$RESULT" | grep -qiE "refused|CONN_ERR|52|000"; then
     ok "3c: checkout-service REACHES postgres (connection refused = packet arrived, allow rule works)"
   elif echo "$RESULT" | grep -q "timed out"; then
@@ -184,7 +193,7 @@ fi
 
 echo ""
 info "Test 3d: api-gateway SHOULD reach checkout-service on port 3001"
-GW_POD=$(kubectl get pod -n "$NS" -l app=api-gateway -o jsonpath='{.items[0].metadata.name}')
+GW_POD=$(kubectl get pod -n "$NS" -l app=api-gateway -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
 
 if [ -n "$GW_POD" ]; then
   RESULT=$(kubectl exec -n "$NS" "$GW_POD" -- \

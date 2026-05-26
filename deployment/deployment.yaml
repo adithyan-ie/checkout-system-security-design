@@ -1,6 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: pricing-service-deployment }
+metadata:
+  name: pricing-service-deployment 
+  namespace: nano-service
 spec:
   replicas: 1
   selector: { matchLabels: { app: pricing-service } }
@@ -22,14 +24,18 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: pricing-svc }
+metadata: 
+  name: pricing-svc
+  namespace: nano-service
 spec:
   selector: { app: pricing-service }
   ports: [{ name: http, port: 80, targetPort: 3003 }]
 ---
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: inventory-service-deployment }
+metadata: 
+  name: inventory-service-deployment
+  namespace: nano-service
 spec:
   replicas: 1
   selector: { matchLabels: { app: inventory-service } }
@@ -51,14 +57,18 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: inventory-svc }
+metadata: 
+  name: inventory-svc
+  namespace: nano-service
 spec:
   selector: { app: inventory-service }
   ports: [{ name: http, port: 80, targetPort: 3002 }]
 ---
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: checkout-service-deployment }
+metadata: 
+  name: checkout-service-deployment
+  namespace: nano-service
 spec:
   selector: { matchLabels: { app: checkout-service } }
   template:
@@ -95,7 +105,9 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: checkout-svc }
+metadata: 
+  name: checkout-svc
+  namespace: nano-service
 spec:
   selector: { app: checkout-service }
   ports: [{ name: http, port: 80, targetPort: 3001 }]
@@ -103,7 +115,9 @@ spec:
 
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: gateway-deployment }
+metadata:
+  name: gateway-deployment
+  namespace: nano-service
 spec:
   replicas: 1
   selector: { matchLabels: { app: api-gateway } }
@@ -127,7 +141,9 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: gateway-svc }
+metadata:
+  name: gateway-svc
+  namespace: nano-service
 spec:
   selector: { app: api-gateway }
   ports: [{ port: 80, targetPort: 80 }]

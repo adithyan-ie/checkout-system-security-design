@@ -24,7 +24,7 @@ metadata:
   name: gateway-deployment
   namespace: nano-service
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: api-gateway
