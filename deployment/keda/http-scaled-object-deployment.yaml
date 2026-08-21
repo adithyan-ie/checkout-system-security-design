@@ -1,19 +1,38 @@
 apiVersion: http.keda.sh/v1alpha1
 kind: HTTPScaledObject
 metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"http.keda.sh/v1alpha1","kind":"HTTPScaledObject","metadata":{"annotations":{},"name":"keda-http-target-checkout-service","namespace":"nano-service"},"spec":{"hosts":["localhost"],"pathPrefixes":["/checkout"],"replicas":{"max":5,"min":1},"scaleTargetRef":{"name":"checkout-service-deployment","port":80,"service":"checkout-svc"},"scaledownPeriod":120,"targetPendingRequests":50}}
+  creationTimestamp: "2026-04-04T21:34:32Z"
+  finalizers:
+  - httpscaledobject.http.keda.sh
+  generation: 8
   name: keda-http-target-checkout-service
   namespace: nano-service
+  resourceVersion: "124798"
+  uid: fe7f0a00-6300-4d83-b4c6-8855778f918b
 spec:
   hosts:
-    - localhost
+  - localhost
   pathPrefixes:
-    - /checkout
+  - /api/checkout
+  replicas:
+    max: 5
+    min: 1
   scaleTargetRef:
     name: checkout-service-deployment
-    service: checkout-svc
     port: 80
-  replicas:
-    min: 0
-    max: 5
-  scaledownPeriod: 30
+    service: checkout-svc
+  scaledownPeriod: 120
   targetPendingRequests: 50
+status:
+  conditions:
+  - lastTransitionTime: "2026-04-04T21:34:34Z"
+    message: ScaledObject created and configured
+    observedGeneration: 8
+    reason: Reconciled
+    status: "True"
+    type: Ready
+  targetService: checkout-svc:80
+  targetWorkload: //checkout-service-deployment

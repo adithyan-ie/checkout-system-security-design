@@ -1,41 +1,50 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.k8s.io/v1","kind":"Ingress","metadata":{"annotations":{},"name":"keda-http-ingress","namespace":"nano-service"},"spec":{"ingressClassName":"traefik","rules":[{"host":"localhost","http":{"paths":[{"backend":{"service":{"name":"gateway-svc","port":{"number":80}}},"path":"/api/ping","pathType":"Prefix"},{"backend":{"service":{"name":"gateway-svc","port":{"number":80}}},"path":"/api/arch","pathType":"Prefix"},{"backend":{"service":{"name":"keda-interceptor-external-proxy","port":{"number":8080}}},"path":"/api","pathType":"Prefix"},{"backend":{"service":{"name":"gateway-svc","port":{"number":80}}},"path":"/","pathType":"Prefix"}]}}]}}
+  creationTimestamp: "2026-04-04T21:40:20Z"
+  generation: 4
   name: keda-http-ingress
   namespace: nano-service
+  resourceVersion: "124947"
+  uid: b4ab4438-fdc3-4fbc-9932-3bfc5bf301dc
 spec:
   ingressClassName: traefik
   rules:
-    - host: localhost
-      http:
-        paths:
-          - path: /api/ping
-            pathType: Prefix
-            backend:
-              service:
-                name: gateway-svc
-                port:
-                  number: 80
-          - path: /api/arch
-            pathType: Prefix
-            backend:
-              service:
-                name: gateway-svc
-                port:
-                  number: 80
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: keda-interceptor-external-proxy
-                port:
-                  number: 8080
-
-          - path: /
-            pathType: Prefix
-            backend:
-             service:
-               name: gateway-svc
-               port:
-                 number: 80
-
+  - host: localhost
+    http:
+      paths:
+      - backend:
+          service:
+            name: gateway-svc
+            port:
+              number: 80
+        path: /api/ping
+        pathType: Prefix
+      - backend:
+          service:
+            name: gateway-svc
+            port:
+              number: 80
+        path: /api/arch
+        pathType: Prefix
+      - backend:
+          service:
+            name: gateway-svc
+            port:
+              number: 80
+        path: /api
+        pathType: Prefix
+      - backend:
+          service:
+            name: gateway-svc
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+status:
+  loadBalancer:
+    ingress:
+    - ip: 10.0.2.15

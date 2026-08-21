@@ -39,7 +39,7 @@ spec:
         runAsUser: 1000
         fsGroup: 1000
       containers:
-        - name: api-gateway-container
+        - name: nginx-container
           image: localhost:5000/api-gateway:latest
           ports:
             - containerPort: 80
@@ -59,6 +59,12 @@ spec:
               cpu: "200m"
               memory: "128Mi"
           volumeMounts:
+            - name: volume-gateway-ui
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+            - name: volume-nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: nginx.conf
             - name: tmp
               mountPath: /tmp
             - name: nginx-cache
@@ -78,6 +84,12 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 20
       volumes:
+        - name: volume-gateway-ui
+          configMap:
+            name: gateway-ui-configmap
+        - name: volume-nginx-config
+          configMap:
+            name: nginx-default-config
         - name: tmp
           emptyDir: {}
         - name: nginx-cache
@@ -107,6 +119,12 @@ metadata:
   namespace: nano-service
 spec:
   replicas: 1       # KEDA will manage this — starts at 0 when idle
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+
   selector:
     matchLabels:
       app: checkout-service
@@ -138,21 +156,13 @@ spec:
               value: "postgres"
             - name: DB_PORT
               value: "5432"
-            - name: DB_NAME
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_DB
-            - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_USER
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_PASSWORD
+                  name: db-creds
+                  key: password
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false

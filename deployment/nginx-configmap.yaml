@@ -1,0 +1,38 @@
+apiVersion: v1
+data:
+  nginx.conf: |-
+    server {
+      listen 80;
+      proxy_set_header X-Request-Id $http_x_request_id;
+
+      location / {
+        root /usr/share/nginx/html;
+        index index.html;
+      }
+
+      location = /api/arch {
+        default_type application/json;
+        add_header Cache-Control "no-store";
+        return 200 "{\"arch\":\"nanoservices-compose architecture\",\"component\":\"gateway\"}";
+      }
+
+      location = /api/ping {
+        default_type application/json;
+        add_header Cache-Control "no-store";
+        return 200 "{\"ok\":true}";
+      }
+
+      location /api/checkout {
+        proxy_pass http://checkout-svc:80/api/checkout;
+      }
+    }
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"nginx.conf":"server {\n  listen 80;\n  proxy_set_header X-Request-Id $http_x_request_id;\n\n  location / {\n    root /usr/share/nginx/html;\n    index index.html;\n  }\n\n  location = /api/arch {\n    default_type application/json;\n    add_header Cache-Control \"no-store\";\n    return 200 \"{\\\"arch\\\":\\\"nanoservices-compose architecture\\\",\\\"component\\\":\\\"gateway\\\"}\";\n  }\n\n  location = /api/ping {\n    default_type application/json;\n    add_header Cache-Control \"no-store\";\n    return 200 \"{\\\"ok\\\":true}\";\n  }\n\n  location /api/checkout {\n    proxy_pass http://checkout-svc:80/api/checkout;\n  }\n}"},"kind":"ConfigMap","metadata":{"annotations":{},"name":"nginx-default-config","namespace":"nano-service"}}
+  creationTimestamp: "2026-04-04T22:25:06Z"
+  name: nginx-default-config
+  namespace: nano-service
+  resourceVersion: "126253"
+  uid: 625275ec-a355-46b7-82f0-5336741867e9

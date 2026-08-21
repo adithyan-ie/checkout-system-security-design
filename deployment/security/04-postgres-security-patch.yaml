@@ -21,6 +21,11 @@ metadata:
   namespace: nano-service
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: postgres
@@ -39,21 +44,13 @@ spec:
           ports:
             - containerPort: 5432
           env:
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_PASSWORD
+                  name: db-creds
+                  key: password
             - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_DB
+              value: shop
           securityContext:
             allowPrivilegeEscalation: false
             # readOnlyRootFilesystem intentionally omitted:
